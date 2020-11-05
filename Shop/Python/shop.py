@@ -1,9 +1,11 @@
-from dataclasses import dataclass, field    # To add generated special methods                        
+from dataclasses import dataclass, field
+import shutil                               # To move a temporary file into stock.csv               
 from typing import List                     # For working with shopping lists and shop stock
 import csv                                  # For process CSVs
 import subprocess                           # For clearing the screen
-from tempfile import NamedTemporaryFile
-import shutil
+from tempfile import NamedTemporaryFile     # To create a temporary file when writing a CSV
+
+
 filename = '../stock.csv'
 # Clear the screen
 subprocess.call("cls", shell=True)
@@ -32,26 +34,27 @@ class Customer:
     shopping_list: List[ProductStock] = field(default_factory=list)
 
 
-
-
 # PART 1: SHOP
 
 # Stock the shop from CSV using the above classes
 def create_and_stock_shop():
     s = Shop()
-    # Open the csv file
-    with open(filename) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=',')
-        # Separate the info in the first row
-        first_row = next(csv_reader)
-        s.cash = float(first_row[0])
-        # Stock up the rest of the csv as product list
-        for row in csv_reader:
-            p = Product(row[0], float(row[1]))
-            ps = ProductStock(p, int(row[2]))
-            # Add to the list of items
-            s.stock.append(ps)
-    return s
+    # Open the stock.csv file
+    try:
+        with open(filename) as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            # Separate the info in the first row
+            first_row = next(csv_reader)
+            s.cash = float(first_row[0])
+            # Stock up the rest of the csv as product list
+            for row in csv_reader:
+                p = Product(row[0], float(row[1]))
+                ps = ProductStock(p, int(row[2]))
+                # Add to the list of items
+                s.stock.append(ps)
+        return s
+    except FileNotFoundError:
+        print(f">>>> ERROR: cannot open {filename}")
 
 # Display the shop
 def print_shop(s):
@@ -77,11 +80,17 @@ def view_shop():
 
 # PART 2: LIVE MODE
 
+"""
+Function that collects data from a customer
+and creates a shopping list
+"""
 def place_order():
     # Clear the screen.
     subprocess.call("cls", shell=True)
     s = create_and_stock_shop()
     c = Customer()
+
+    # Ask customer to enter his/her details
     c.name = input("Please enter your name: ").strip().capitalize()
     while True:
         try:
@@ -96,6 +105,7 @@ def place_order():
     for i in s.stock:
         print(f"{i.product.name}")  
 
+    # Ask a customer to enter products and their quantity
     continue_order = 0
     while continue_order != 'n':
         product = input("\nPlease enter product: ").strip().lower()
@@ -104,6 +114,8 @@ def place_order():
         except ValueError:
             print(">>>> ERROR: please enter a number")
             continue
+
+        # Create a shopping list from the products the customer entered
         for i in s.stock:
             if product == i.product.name.lower():
                 total_cost = quantity * i.product.price
@@ -113,11 +125,9 @@ def place_order():
                     p = i.product
                     ps = ProductStock(p, quantity)
                     c.shopping_list.append(ps)
-                    #print(c.shopping_list)
                     continue_order = input("\nWould you like to order something else? [Y/N]: ").strip().lower()
                     print("-------------------------------------------------")             
     print_customer(c)
-
 
 
 
@@ -133,16 +143,25 @@ def import_order():
     answer = input("\n Your choice: ").strip()
     # normal order
     if answer == '1':
-        c = read_customer('../customer1.csv')
-        print_customer(c)
+        try:
+            c = read_customer('../customer1.csv')
+            print_customer(c)
+        except FileNotFoundError:
+            print(f">>>> ERROR: cannot open customer1.csv")
     # not enough money
     elif answer == '2':
-        c = read_customer('../customer2.csv')
-        print_customer(c)
+        try:
+            c = read_customer('../customer2.csv')
+            print_customer(c)
+        except FileNotFoundError:
+            print(f">>>> ERROR: cannot open customer2.csv")
     # not enough stock
     elif answer == '3':
-        c = read_customer('../customer3.csv')
-        print_customer(c)
+        try:
+            c = read_customer('../customer3.csv')
+            print_customer(c)
+        except FileNotFoundError:
+            print(f">>>> ERROR: cannot open customer3.csv")
 
 
 # Load a customer's CSV file
@@ -167,6 +186,7 @@ def read_customer(file_path):
         return c
 
 
+
 # Display a customer's order
 def print_customer(c):
     total_cost = 0.0
@@ -177,8 +197,8 @@ def print_customer(c):
     print("*********************************************\n")
     print("Product\t\t\tPrice\tQty\tCost\n")
     print("_____________________________________________\n")
+    
     # print the details of each product in the shop
-
     s = create_and_stock_shop()
     for i in c.shopping_list:
         cost = i.quantity * i.product.price
@@ -198,8 +218,10 @@ def print_customer(c):
             process_order(s,c)
 
 
-
-# Process the order
+"""
+Function that processes the customer's order
+and changes stock.csv accordingly
+"""
 def process_order(s,c):
     total_cost = 0.0
     for i in c.shopping_list:
@@ -215,29 +237,37 @@ def process_order(s,c):
                     j.quantity -= i.quantity
                     # Update the shop cash
                     s.cash += total_cost
+                    # Decrement the customer's budget
+                    c.budget -= total_cost
 
                     # UPDATE THE STOCK CSV
                     # Create a temporary file and fieldnames
                     tempfile = NamedTemporaryFile(mode='w', delete=False)
                     fields = ['Product', 'Cost', 'Quantity']
+                    try:
+                        with open(filename, 'r', newline='') as csvfile, tempfile:
+                            reader = csv.DictReader(csvfile, delimiter=',', lineterminator='\n', fieldnames=fields)
+                            writer = csv.DictWriter(tempfile, delimiter=',', lineterminator='\n', fieldnames=fields)
+                            for row in reader:
+                                # Check if Cost column is missing (to select the row with cash)
+                                # Adapted from https://stackoverflow.com/questions/34192705/python-how-to-check-if-cell-in-csv-file-is-empty
+                                if row['Cost'] in (None, ""):
+                                    row['Product'] = s.cash
+                                elif row['Product'] == i.product.name: 
+                                    row['Quantity'] = j.quantity
+                                    print('\n\t',row['Product'],'ordered')
+                                row = {'Product': row['Product'], 'Cost': row['Cost'], 'Quantity': row['Quantity']}
+                                writer.writerow(row)
 
-                    with open(filename, 'r', newline='') as csvfile, tempfile:
-                        reader = csv.DictReader(csvfile, delimiter=',', lineterminator='\n', fieldnames=fields)
-                        writer = csv.DictWriter(tempfile, delimiter=',', lineterminator='\n', fieldnames=fields)
-                        for row in reader:
-                            # Check if Cost column is missing (to select the row with cash)
-                            # Adapted from https://stackoverflow.com/questions/34192705/python-how-to-check-if-cell-in-csv-file-is-empty
-                            if row['Cost'] in (None, ""):
-                                row['Product'] = s.cash
-                            elif row['Product'] == i.product.name: 
-                                row['Quantity'] = j.quantity
-                                print('\n\t',row['Product'],'ordered')
-                            row = {'Product': row['Product'], 'Cost': row['Cost'], 'Quantity': row['Quantity']}
-                            writer.writerow(row)
-                    # Move the temporary file to stock.cv
-                    shutil.move(tempfile.name, filename)
+                        # Move the temporary file to stock.cv
+                        shutil.move(tempfile.name, filename)
+                    except FileNotFoundError:
+                        print(f">>>> ERROR: cannot open {filename}")
+
+
     print("\n-------------------------------------------------")
-    print(f"\n {c.name}'s order has been successfully processed!")
+    print(f"\n{c.name}'s order has been successfully processed!")
+    print(f"The balance on {c.name}'s account: €{c.budget}")
     print("\n-------------------------------------------------")
 
     

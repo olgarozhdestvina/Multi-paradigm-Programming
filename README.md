@@ -1,23 +1,23 @@
 ## Project assessment for Multi-paradigm Programming Module
-#### [GMIT 2020]
-
-<img width="250" src="https://png.pngtree.com/png-vector/20190118/ourlarge/pngtree-vector-shop-icon-png-image_327584.jpg">
+### [GMIT 2020]
 
 <br>
 
-The repository contains three programs simulating a shop. They are built using:
+The project contains three programs simulating a shop. They are built using:
 
   * C Procedural Programming
   * Python Procedural Programming
   * Java Object Oriented Programming
 
 Each program has the following features:
-  * Display of the shop stock and current cash.
-  * Reading and processing customer orders from a CSV file.
-  * Live mode where the orders typed in by the user.
-  * Possibility of order fulfillment (checks for insufficient funds and stock shortages)
-  * The stock CSV file is updated accordingly with each successful purchase.
-  * Identical “user experience” of each implementation.
+  * Display of the shop stock and current cash. 
+  * Reading and processing customer orders from a CSV file
+  * Live mode operation where the orders are entered by a user
+  * Checks for insufficient funds and stock shortages. 
+  * The stock CSV file is updated accordingly with each successful
+  * Identical “user experience” of each implementation. 
+ 
+Additionally, there are 4 csv files: 1 with shop stock and 3 with customer orders, and a report outlining similarities and differences between the procedural and the object-oriented approach.
 
 <br>
 

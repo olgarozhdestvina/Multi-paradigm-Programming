@@ -1,6 +1,17 @@
 ## Project assessment for Multi-paradigm Programming Module
 ### [GMIT 2020]
 
+
+<br>
+
+*Submitted by:* Olga Rozhdestvina (Student No: G00387844) 
+
+*Lecturer:* Dominic Carr
+
+*Programming Language used:* [Python](https://www.python.org/), [C](https://www.cprogramming.com/), [Java](https://www.java.com/en/download/)
+
+---
+
 <br>
 
 The project contains three programs simulating a shop. They are built using:
@@ -19,13 +30,6 @@ Each program has the following features:
  
 Additionally, there are 4 csv files: 1 with shop stock and 3 with customer orders, and a report outlining similarities and differences between the procedural and the object-oriented approach.
 
-<br>
-
-*Submitted by:* Olga Rozhdestvina (Student No: G00387844) 
-
-*Lecturer:* Dominic Carr
-
-*Programming Language used:* [Python](https://www.python.org/), [C](https://www.cprogramming.com/), [Java](https://www.java.com/en/download/)
 
 ---
 

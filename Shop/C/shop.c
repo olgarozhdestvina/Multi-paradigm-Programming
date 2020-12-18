@@ -1,10 +1,14 @@
-// import libraries
+/* Olga Rozhdestvina
+GMIT MULTI-PARADIGM-PROGRAMMING 2020
+Shop Simulator in C 
+Procedural Programming
+*/
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-
-// STRUCTURES FOR THE SHOP
+#include <ctype.h>
+#include <errno.h>
 
 struct Product
 {
@@ -33,44 +37,29 @@ struct Customer
 	int index;
 };
 
-//live order structure
-struct placeOrder
-{
-	struct ProductStock *productOrder;
-	int index;
-};
 
-struct Product getProduct(struct Shop s, char *pname)
-{
-	// check the shop for a product and return it
-	struct Product p;
-	for (int i = 0; i < s.index; i++)
-	{
-		if (strcmp(s.stock[i].product.name, pname) == 0)
-		{
-			p = s.stock[i].product;
-		}
-	}
-	return p;
-};
+// PART 1: STOCK SHOP
 
+// Stock the shop from CSV using the above classes.
 struct Shop createAndStockShop()
 {
-
 	FILE *fp;
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
-
-	fp = fopen("../stock.csv", "r");
+	char *filename = "../stock.csv"; 
+	fp = fopen(filename, "r");
 	if (fp == NULL)
+	{
+		fprintf(stderr, ">>>> ERROR: cannot open %s: \n", filename);
 		exit(EXIT_FAILURE);
-
-	// Read the first line from stock.csv as initial cash of the shop
+	}
+	// Read the first line from stock.csv as initial cash of the shop.
 	read = getline(&line, &len, fp);
 	double initialCash = atof(line);
 	struct Shop shop = {initialCash};
 
+	// Stock up the shop.
 	while ((read = getline(&line, &len, fp)) != -1)
 	{
 		char *n = strtok(line, ",");
@@ -83,308 +72,427 @@ struct Shop createAndStockShop()
 
 		struct Product product = {name, price};
 		struct ProductStock stockItem = {product, quantity};
-
 		shop.stock[shop.index++] = stockItem;
 	}
 
 	return shop;
 }
 
-struct Customer walkInCustomer(struct Shop s, char *readCSV)
+// Display the shop
+void printShop(struct Shop s)
+{
+	printf("\n *********************************************\n\n");
+    printf("\t CASH AT THE SHOP: €%.2f\n", s.cash);
+    printf("\n *********************************************\n");
+    printf("\n Product\t\tPrice\t\tQty\n");
+    printf(" _____________________________________________\n");
+	for (int i = 0; i < s.index; i++)
+	{
+		printf("\n %s", s.stock[i].product.name);
+        printf("\n\t\t\t%.2f\t\t%d\n", s.stock[i].product.price, s.stock[i].quantity);
+        printf(" ---------------------------------------------\n");
+	}
+}
+
+
+// Function that checks if product name is in the shop and returns struct product
+struct Product getProduct(struct Shop s, char *pname)
+{
+	// check the shop for a product and return it
+	struct Product p;
+	for (int i = 0; i < s.index; i++)
+	{
+		// Adapted from https://stackoverflow.com/questions/30702039/how-to-do-a-case-insensitive-string-comparison
+		if (strcasecmp(s.stock[i].product.name, pname) == 0)
+		{
+			p = s.stock[i].product;
+		}
+	}
+	return p;
+};
+
+// Strip of extra spaces if tiped in
+// Adapted from https://stackoverflow.com/questions/1488372/mimic-pythons-strip-function-in-c
+char *strstrip(char *pname)
+{
+        size_t size;
+        char *end;
+
+        size = strlen(pname);
+
+        if (!size)
+                return pname;
+
+        end = pname + size - 1;
+        while (end >= pname && isspace(*end))
+                end--;
+        *(end + 1) = '\0';
+
+        while (*pname && isspace(*pname))
+                pname++;
+
+        return pname;
+}
+
+// PART 2: LIVE MODE
+
+// Create a shopping list from customer's input
+void shoppingList(struct Shop *s, struct Customer *customer)
+{
+	char continueOrder;
+	while(strcasecmp(&continueOrder, "N") != 0)
+	{	
+		char pn[20];
+		float productQuantity;
+		char *productName = malloc(sizeof(char) * 50);
+
+		// Check if the product entered matches the shop stock.
+		for (int i = 0; i < s->index; i++)
+		{
+				// Ask a customer to enter products and their quantity
+				printf("\n Please enter product: ");
+				scanf("\n %[^\n]%*c", &pn);
+				fflush(stdin);
+
+				printf(" Please enter quantity: ");
+				scanf("%f", &productQuantity);
+				fflush(stdin);
+
+				// See if the product entered exists in the shop.
+				strcpy(productName, pn);
+				strstrip(pn);
+				getProduct(*s, pn);
+				double totalCost = productQuantity * getProduct(*s, pn).price;
+				printf("\n >>>> The cost of it is €%.2f.\n", totalCost);
+
+				// If the customer wants to add to the basket, append to the shopping list if yes.
+				char addToBasket = printf("\n Would you like to add it to your basket? [Y/N]: ");
+				scanf("%s", &addToBasket);
+				fflush(stdin);
+				if ((addToBasket == 'y') || (addToBasket == 'Y'))
+					{	
+						struct Product product = {getProduct(*s, pn).name, getProduct(*s, pn).price};
+						struct ProductStock listItem = {product, productQuantity};
+						customer->shoppingList[customer->index++] = listItem;
+					}
+				printf("\n Would you like to order something else? [Y/N]: ");
+				scanf("%s", &continueOrder);
+				fflush(stdin);
+				if ((continueOrder == 'n') || (continueOrder == 'N')){
+					break;
+				}
+				printf(" -------------------------------------------------\n");
+		}
+	}
+}
+
+
+/*
+Function that collects data from a customer
+and calls for function that creates a shopping list
+*/
+struct Customer placeOrder() 
+{
+	// Clear screen adapted from https://www.quora.com/What-is-the-function-of-a-system-cls-in-C-programming
+	system("clear");
+	struct Shop s = createAndStockShop();
+
+	// Ask customer to enter his/her details
+	char name[20];
+	float budget;
+	printf("Please enter your name: ");
+	scanf("%s", &name);
+	fflush(stdin);
+	printf("Please enter your budget: ");
+	scanf("%f", &budget);
+	fflush(stdin);
+
+	// Register customer's name and budget in the struct.
+	char *customerName = malloc(sizeof(char) * 50);
+	strcpy(customerName, name);
+	strstrip(customerName);
+	struct Customer customer = {customerName, budget};
+	// Greet the customer (the first letter of the name capitalized)
+	// Adapted from https://www.codevscolor.com/c-toupper-method-explanation-with-example
+	printf("\n\t Hello, %c%s!\n", toupper(name[0]), name+1);
+    printf(" +++++++++++++++++++++++++\n");
+    printf("\n Choose from our products:\n\n");
+	// Display available products
+	for (int i = 0; i < s.index; i++)
+	{
+        printf(" %s\n", s.stock[i].product.name);
+	}
+
+	// Create a shopping list.
+	shoppingList(&s,&customer);
+	return customer;
+}
+	
+
+
+
+// PART 3: READ CUSTOMER ORDER FROM CSV
+
+
+// Load a customer's CSV file and create a shopping list
+struct Customer readCustomer(char *filename)
 {
 	FILE *fp;
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
 
-	fp = fopen('../'+ readCSV, "r");
+	fp = fopen(filename, "r");
 	if (fp == NULL)
 		exit(EXIT_FAILURE);
 
 	// Read the first line from customer file as customer's name and budget
 	double customerLine = getline(&line, &len, fp);
-	// walk-in customer name
-	char *wc = strtok(line, ",");
-	// walk-in customer budget
-	char *wcb = strtok(NULL, ",");
+	char *name = strtok(line, ",");
+	char *budget = strtok(NULL, ",");
 	char *customerName = malloc(sizeof(char) * 50);
-	strcpy(customerName, wc);
-	double customerBudget = atof(wcb);
+	strcpy(customerName, name);
+	double customerBudget = atof(budget);
 
+	struct Shop s = createAndStockShop();
 	struct Customer customer = {customerName, customerBudget};
 
 	while ((read = getline(&line, &len, fp)) != -1)
 	{
 		char *pn = strtok(line, ",");
-		// read the productquantiy as 'qn'
 		char *qn = strtok(NULL, ",");
-		// convert 'qn' to int 'ordQuantity'
 		int productQuantity = atoi(qn);
-		// allocate memory yto the product name and copy in 'n'
 		char *productName = malloc(sizeof(char) * 50);
 		strcpy(productName, pn);
-		// create a product and product stock with the information from the file
+
+		// Create a product and product stock with the information from the file
 		struct Product product = {productName, getProduct(s, productName).price};
 		struct ProductStock listItem = {product, productQuantity};
-		// increment the index and put the stock item in to the stock array
+		// Increment the index and put the stock item in to the stock array
 		customer.shoppingList[customer.index++] = listItem;
 	}
 	return customer;
 }
 
-struct placeOrder createLiveOrder(struct Shop s)
+
+
+// PART 4: PROCESS CUSTOMER'S ORDER AND UPDATE STOCK.CSV
+
+// Update the stock.csv file.
+// Followed from https://www.guru99.com/c-file-input-output.html
+void updateShop(struct Shop s, struct Customer c)
 {
-	//create a structure for the order
-	struct placeOrder order;
-	order.productOrder = malloc(sizeof(struct ProductStock) * 10);
-	order.index = 0;
-	// this is used a boolean operator a while loop
-	char continueOrder;
-	// keep accepting items until the users says no
-	while (strcmp(&continueOrder, "y") != 0)
+	// Open the stock.csv in writing mode.
+	FILE * fp;
+	char *filename = "../stock.csv"; 
+	fp = fopen(filename,"w+");
+	if (fp == NULL)
 	{
-		//allocate memory for the inputs
-		char *item = malloc(sizeof(char) * 120);
-		int requestQty;
-
-		// Request an input from the user
-		printf("Please enter product: ");
-		scanf("\n%[^\n]%*c", item);
-		printf("Please enter quantity: ");
-		scanf("%d", &requestQty);
-
-		// create a product and product stock with the information from the user input
-		struct Product product = {item, getProduct(s, item).price};
-		struct ProductStock listItem = {product, requestQty};
-
-		// increment the index and put the stock item in to the stock array
-		order.productOrder[order.index] = listItem;
-		order.index++;
-
-		// ask the user do they want to enter more items
-		printf("\nWould you like to proceed to checkout? (y/n)");
-		scanf("\n%s", &continueOrder);
+		fprintf(stderr, "Could not open %s: %s\n", filename, strerror(errno));
+		exit(EXIT_FAILURE);
 	}
-	return order;
+	// Update cash.
+	fprintf(fp,"%.2f\n", s.cash);
+
+	// Update stock.
+	for (int i=0; i< s.index; i++)
+	{
+		fprintf(fp, "%s,%.2f,%i\n",s.stock[i].product.name,s.stock[i].product.price,s.stock[i].quantity);	
+	}
+	fclose(fp);	
+	return;
 }
 
 
-
-// METHODS FOR THE SHOP
-
-void printProduct(struct Product p)
+/* Function that processes the customer's order
+and calls function for updating stock.csv 
+*/
+void processOrder(struct Shop *s, struct Customer *c)
 {
-	printf("PRODUCT NAME: %s \nPRODUCT PRICE: %.2f\n", p.name, p.price);
-	printf("-------------\n");
+	double cost = 0.0;
+
+	// Check if we have each item on the order in stock
+	for (int i = 0; i < c->index; i++)
+	{
+		for (int j = 0; j < s->index; j++)
+		{
+			if (strcmp(c->shoppingList[i].product.name, s->stock[j].product.name) == 0)
+			{
+				// Check if there is enough stock
+				if (s->stock[j].quantity < c->shoppingList[i].quantity)
+				{
+					printf("\n >>>> ERROR: Not enough %s in stock to fulfill the order.\n", c->shoppingList[i].product.name);
+					break;
+				}
+				else
+				{
+					cost = c->shoppingList[i].product.price * c->shoppingList[i].quantity;
+					// Decrement the quantity of stock
+					s->stock[j].quantity -= c->shoppingList[i].quantity;
+					// Update the shop cash
+					s->cash += c->shoppingList[i].product.price * c->shoppingList[i].quantity;
+					// Decrement the customer's budget
+					c->budget -= c->shoppingList[i].product.price * c->shoppingList[i].quantity;
+					printf("\n \t%s ordered\n", c->shoppingList[i].product.name);			
+				}
+			}
+		}
+		updateShop(*s, *c);
+	}
+	printf("\n -------------------------------------------------\n");
+    printf("\n %c%s's order has been successfully processed!", toupper(c->name[0]),c->name+1);
+    printf("\n The balance on %c%s's account: €%.2f\n", toupper(c->name[0]),c->name+1, c->budget);
+    printf("\n -------------------------------------------------\n");
 }
 
 
-void printCustomer(struct Customer c)
+/* Function that displays customer's credentials,
+their structured shopping list,
+calculates total cost of the order,
+checks if the customer has enough funds to pay for the transaction
+*/
+void customersOrder(struct Customer c)
 {
-	// initial cost of the shopping basket
-	double dueToPay = 0.0;
-	printf("CUSTOMER NAME: %s \nCUSTOMER BUDGET: %.2f\n", c.name, c.budget);
-	printf("-------------\n");
+	system("clear");
+	double totalCost = 0.0;
+	struct Shop s = createAndStockShop();
+
+	// Print the credentials.
+	printf("\n *********************************************\n");
+    printf("\n CUSTOMER: %c%s\n BUDGET:   €%.2f\n", toupper(c.name[0]), c.name+1, c.budget);
+    printf("\n *********************************************\n");
+	
+	// Print the shopping list.
+    printf("\n Product\t\t Price\t Qty\t Cost\n");
+    printf("\n _____________________________________________\n");
 
 	for (int i = 0; i < c.index; i++)
 	{
-		printProduct(c.shoppingList[i].product);
-		printf("%s ORDERS %d OF ABOVE PRODUCT\n", c.name, c.shoppingList[i].quantity);
+		// Calculate the cost of each item
 		double cost = c.shoppingList[i].quantity * c.shoppingList[i].product.price;
-		printf("The cost to %s will be €%.2f\n", c.name, cost);
+		if (c.shoppingList[i].quantity > 10) {
+            printf(" Discounted\n %s", c.shoppingList[i].product.name);
+            double discounted = cost - (cost * 0.1);
+            printf("\n \t\t\t  %.2f \t  %d \t %.2f", c.shoppingList[i].product.price, c.shoppingList[i].quantity, discounted);
+			printf("\n ---------------------------------------------\n\n");
+			// add the line cost to the total
+            totalCost += discounted;
+		}
+        else {
+			printf("\n %s", c.shoppingList[i].product.name);
+			printf("\n \t\t\t  %.2f \t  %d \t %.2f", c.shoppingList[i].product.price, c.shoppingList[i].quantity, cost);
+			printf("\n ---------------------------------------------\n\n");
+			// Update total cost of the order.
+			totalCost += cost;
+		}	
+	}
+
+	printf("\n Total\t\t\t\t\t %.2f", totalCost);
+    printf("\n ---------------------------------------------\n");
+	char processOrNot = printf("\n\n Would you like to process %c%s's order? [Y/N]: ", toupper(c.name[0]), c.name+1);
+	scanf("%s", &processOrNot);
+	fflush(stdin);
+
+	// Check if customer has enough money to pay for the order.
+    if ((processOrNot == 'y') || (processOrNot == 'Y'))
+	{
+        if (totalCost > c.budget)
+		{
+            printf("\n>>>> ERROR: Non-Sufficient Funds for the order to be processed\n");
+            return;
+		}
+        else
+		{	
+			processOrder(&s,&c);
+		}
 	}
 }
 
 
-void printShop(struct Shop s)
+// Choose between 3 CVS files to read
+void importOrder()
 {
-	printf("Shop has %.2f in cash\n", s.cash);
-	for (int i = 0; i < s.index; i++)
-	{
-		printProduct(s.stock[i].product);
-		printf("The shop has %d of the above\n", s.stock[i].quantity);
-	}
-}
+	int choice;
+	char *filename;
 
-char *findProduct(struct Shop s, char n)
-{
-	//take in a shop and a string
-	// loop through the shop stock
-	for (int j = 0; j < s.index; j++)
+	system("clear");
+	fflush(stdin);
+	printf("\n -----------------------------------------------------\n");
+	printf("\n Please choose the file you would like to import.\n");
+	printf("\n\n PRESS\n\t-[1] for Customer 1\n\t-[2] for Customer 2\n\t-[3] for Customer 3\n\t- or any other key to Return to the menu");
+	printf("\n\n Your choice: ");
+	scanf("%d", &choice);
+	fflush(stdin);
+	// normal order
+	if (choice == 1)
 	{
-		// check if the item entered is in stock
-		if (strcmp(s.stock[j].product.name, n) == 0)
-		{
-			// if so return the product name
-			return s.stock[j].product.name;
-		}
+		filename = "../customer1.csv";
+		struct Customer c = readCustomer(filename);
+		customersOrder(c);
 	}
-	//if not return "Not in Stock"
-	return "NULL";
-}
-
-void processOrder(struct Shop s, struct Customer c)
-{
-	// create a variable to store the total cost of the order
-	double orderTotal = 0;
-	// loop through the order and calculate the total cost
-	for (int i = 0; i < c.index; i++)
+	// not enough money
+	else if (choice == 2)
 	{
-		orderTotal = orderTotal + (c.shoppingList[i].product.price * c.shoppingList[i].quantity);
+		filename = "../customer2.csv";
+		struct Customer c = readCustomer(filename);
+		customersOrder(c);
 	}
-	// if the total cost is greater that the budget, throw an error and terminate the transaction
-	if (orderTotal > c.budget)
+	// not enough stock
+	else if (choice == 3)
 	{
-		printf("\nERROR: order total exceeds customer budget.\n");
-		return;
-	}
-	// check is each item stocked
-	for (int i = 0; i < c.index; i++)
-	{
-		if (strcmp(findProduct(s, c.shoppingList[i].product.name), "NULL") == 0)
-		{
-			printf("\nERROR: Non Stock Item, %s, on Customer Order.\n", c.shoppingList[i].product.name);
-			return;
-		}
-	}
-	// check if we have each item on the order in stock
-	for (int i = 0; i < c.index; i++)
-	{
-		for (int j = 0; j < s.index; j++)
-		{
-			if (strcmp(c.shoppingList[i].product.name, s.stock[j].product.name) == 0)
-			{
-				// check do we have enough in stock
-				if (c.shoppingList[i].quantity > s.stock[j].quantity)
-				{
-					printf("\nERROR: Not enough %s in stock to fulfil order.\n", c.shoppingList[i].product.name);
-					return;
-				}
-				//deplete the shop stock by the ordered amount
-				s.stock[j].quantity -= c.shoppingList[i].quantity;
-				// update the cash in by the amount of the line of the order
-				s.cash += c.shoppingList[i].product.price * c.shoppingList[i].quantity;
-				// deplete the budget by the same amount
-				c.budget -= c.shoppingList[i].product.price * c.shoppingList[i].quantity;
-				printf("\nOrder has successfully been processed.\n");
-			}
-		}
-	}
+		filename = "../customer3.csv";
+		struct Customer c = readCustomer(filename);
+		customersOrder(c);
+	}	
 }
 
 
-
-void processLiveOrder(struct Shop s, struct placeOrder po)
-{
-	// create a variable to store the total cost of the order
-	double orderTotal = 0;
-	// loop through the order and calculate the total cost
-	for (int i = 0; i <= po.index; i++)
-	{
-		orderTotal = orderTotal + (po.productOrder[i].product.price * po.productOrder[i].quantity);
-	}
-
-	// check is each item stocked
-	for (int i = 0; i < po.index; i++)
-	{
-		if (strcmp(findProduct(s, po.productOrder[i].product.name), "NULL") == 0)
-		{
-			printf("\nERROR: Non Stock Item, %s, on Customer Order.\n", po.productOrder[i].product.name);
-			return;
-		}
-	}
-	// check if we have each item on the order in stock
-	for (int i = 0; i < po.index; i++)
-	{
-		for (int j = 0; j < s.index; j++)
-		{
-			if (strcmp(po.productOrder[i].product.name, s.stock[j].product.name) == 0)
-			{
-				// check do we have enough in stock
-				if (po.productOrder[i].quantity > s.stock[j].quantity)
-				{
-					printf("\nERROR: Not enough %s in stock to fulfil order.\n", po.productOrder[i].product.name);
-					return;
-				}
-				//deplete the shop stock by the ordered amount
-				s.stock[j].quantity -= po.productOrder[i].quantity;
-				// update the cash in by the amount of the line of the order
-				s.cash += po.productOrder[i].product.price * po.productOrder[i].quantity;
-			}
-		}
-	}
-	//format output
-	printf("\n");
-	printf("\n");
-	printf("Order successfully processed, total cost of order: %.2f\n", orderTotal);
-}
-
+// PART 5: MENU
+// Adapted from https://stackoverflow.com/questions/15469064/interactive-menu-with-switch-statement
 void menu(struct Shop s)
 {
+	printf("\n\t\tWelcome to Olga's Shop!\n+++++++++++++++++++++++++++++++++++++++++++++++++++++\n\n\n");
+	int choice;
+	fflush(stdin);
+	do {
+		// Menu options
+		printf("\n PRESS\n\t-[1] to View shop\n\t-[2] to Place an order \n\t-[3] to Import customer's orders from a file\n\t-[0] to Exit");
+		printf("\n\n Your choice: ");
+		scanf("%d", &choice);
 
-	int input;
-	char menuReturn;
-	char filePath;
-
-	printf("\t\t\t\t Welcome to Olga's Shop!\n+++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-	printf("\n");
-	printf("\nPRESS\n\t-[1] to Place an order \n\t-[2] to Import customer's orders from a file\n\t-[0] to Exit");
-	printf(" Your choice: ");
-	scanf("%d", &input);
-	if (input == 0)
-	{
-		exit(0); // 0 to exit program
-	}
-	switch (input)
-	{
-	case 1:
-		if (input == 1)
+		switch (choice)
 		{
-			// create a new live order
-			struct placeOrder live = createLiveOrder(s);
-			//process the order
-			processLiveOrder(s, live);
-			//format the output
-			printf("\n");
-			printf("\n");
-			printf("Enter any value to return to the main menu.\n");
-			scanf("%s", &menuReturn);
-			//clear screen and return to main menu
-			system("@cls||clear");
-			menu(s);
+			case 1:
+					system("clear");
+					struct Shop s = createAndStockShop();
+					printShop(s);
+					break;
+			case 2:
+					system("clear");
+					struct Customer c = placeOrder();
+					customersOrder(c);
+					break;
+			case 3:
+					system("clear");
+					importOrder(s);
+					break;
+			case 0:
+					break;
+			default:	
+					printf("\n Incorrect entry.\n");
+					break;
 		}
-		break;
-	case 2:
-		if (input == 2)
-		{ //clear screen and ask user to enter file name
-			system("@cls||clear");
-			// menu options
-			printf("Please choose the file you would like to import.\n");
-			printf("\nPRESS\n\t-[1] for Customer 1\n\t-[2] for Customer 2\n\t-[3] for Customer 3\n\t-[4] for Customer 4\n\t-[0] back to the menu");
-			scanf("%s", &filePath);
-			//create a new customer
-			struct Customer newCustomer = walkInCustomer(s, &filePath);
-			// process the order and format out put
-			processOrder(s, newCustomer);
-			printCustomer(newCustomer);
-			printf("Enter any value to return to the main menu.\n");
-			scanf("%s", &menuReturn);
-			system("@cls||clear");
-			//clear screen and return to main menu
-			system("@cls||clear");
-			menu(s);
-			}
-		break;
-		}
-	};
-	
+	}	
+	while (choice != 0);
+}
+
+
+// The main function that calls the menu.
 int main(void)
 {
-
 	struct Shop shop = createAndStockShop();
-	system("@cls||clear");
+	system("clear");
 	// call the main screen
 	menu(shop);
-
 	return 0;
 }
